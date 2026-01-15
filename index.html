@@ -39,7 +39,7 @@
             z-index: 100;
             width: 80%;
             max-width: 400px;
-            pointer-events: none; /* Mặc định không chặn chuột để animation mượt */
+            pointer-events: none;
         }
 
         #modal.active {
@@ -70,6 +70,16 @@
             font-size: 0.9rem;
             display: inline-block;
             backdrop-filter: blur(5px);
+        }
+
+        /* Hiển thị trạng thái cử chỉ hiện tại */
+        #gesture-hint {
+            margin-top: 8px;
+            font-size: 0.9rem;
+            color: #00ccff;
+            text-shadow: 0 0 5px rgba(0, 204, 255, 0.5);
+            height: 20px; 
+            font-weight: bold;
         }
 
         /* Nút chuyển chế độ thủ công */
@@ -109,6 +119,7 @@
 
     <div id="overlay">
         <div class="badge" id="device-status">Đang khởi tạo...</div>
+        <div id="gesture-hint"></div>
         <div style="margin-top:10px; color: rgba(255,255,255,0.6); font-size: 0.8rem;" id="guide-text"></div>
     </div>
 
@@ -137,6 +148,7 @@
         const modal = document.getElementById('modal');
         const msgContent = document.getElementById('msg-content');
         const statusBadge = document.getElementById('device-status');
+        const gestureHint = document.getElementById('gesture-hint');
         const guideText = document.getElementById('guide-text');
         const modalHint = document.getElementById('modal-hint');
         const loader = document.getElementById('loader');
@@ -149,10 +161,7 @@
         let hands = null;
         
         // --- LOGIC XÁC ĐỊNH CHẾ ĐỘ ---
-        // 1. Kiểm tra xem người dùng đã chọn chế độ nào trước đó chưa (trong LocalStorage)
         const savedMode = localStorage.getItem('universe_mode');
-        
-        // 2. Nếu chưa, tự động chọn dựa trên kích thước màn hình (Mobile < 1024px)
         let currentMode = savedMode ? savedMode : ((window.innerWidth < 1024) ? 'TOUCH' : 'WEBCAM');
 
         // Trạng thái điều khiển
@@ -161,7 +170,8 @@
             cursorY: -100,
             active: false, 
             rotationSpeed: 0.0005,
-            hoverIndex: -1
+            hoverIndex: -1,
+            gesture: 'NONE' // POINTING, TWO_FINGERS, OPEN, CLOSED
         };
 
         const messages = [
@@ -184,7 +194,6 @@
                 this.size = Math.random() * 2;
                 this.baseSize = this.size;
                 
-                // Tăng kích thước sao đặc biệt để dễ bấm hơn trên điện thoại
                 this.isSpecial = Math.random() < 0.15; 
                 if (this.isSpecial) {
                     this.size = (currentMode === 'TOUCH') ? 10 + Math.random() * 5 : 6 + Math.random() * 3;
@@ -197,7 +206,6 @@
                 this.blinkOffset = Math.random() * 100;
             }
 
-            // Tính toán vị trí trên màn hình
             getScreenPos(centerX, centerY, cosRot, sinRot) {
                 const rotX = this.x * cosRot - this.y * sinRot;
                 const rotY = this.x * sinRot + this.y * cosRot;
@@ -243,15 +251,10 @@
             applyMode();
         }
 
-        // --- QUẢN LÝ CHẾ ĐỘ (ĐÃ SỬA) ---
+        // --- QUẢN LÝ CHẾ ĐỘ ---
         function toggleMode() {
-            // Xác định chế độ tiếp theo
             const nextMode = (currentMode === 'TOUCH') ? 'WEBCAM' : 'TOUCH';
-            
-            // Lưu vào bộ nhớ trình duyệt để sau khi reload nó không bị mất
             localStorage.setItem('universe_mode', nextMode);
-            
-            // Tải lại trang để áp dụng sạch sẽ (tránh xung đột MediaPipe)
             location.reload();
         }
         
@@ -263,10 +266,8 @@
             }
         }
 
-        // --- HÀM LẤY TỌA ĐỘ CHUẨN (FIX LỖI SAI VỊ TRÍ) ---
         function getPointerPos(e) {
             const rect = canvas.getBoundingClientRect();
-            // Hỗ trợ cả Touch và Mouse
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             return {
@@ -281,6 +282,7 @@
             guideText.innerText = "Chạm vào sao để mở • Kéo để xoay";
             modalHint.innerText = "Chạm ra ngoài để đóng";
             modeSwitchBtn.innerText = "🔄 Chuyển sang Camera AI";
+            gestureHint.innerText = "";
 
             let startX = 0;
             
@@ -290,8 +292,6 @@
                 state.cursorY = pos.y;
                 startX = pos.x;
                 state.active = true;
-                
-                // FIX LỖI CLICK: Kiểm tra va chạm ngay lập tức khi chạm
                 checkImmediateHit(pos.x, pos.y);
             }, {passive: false});
 
@@ -300,7 +300,6 @@
                 const pos = getPointerPos(e);
                 state.cursorX = pos.x;
                 state.cursorY = pos.y;
-
                 const deltaX = pos.x - startX;
                 state.rotationSpeed = deltaX * 0.0001; 
             }, {passive: false});
@@ -310,14 +309,12 @@
                 state.rotationSpeed = 0.0005;
             });
             
-            // Hỗ trợ thêm chuột cho Laptop màn cảm ứng
             canvas.addEventListener('mousedown', (e) => {
                 const pos = getPointerPos(e);
                 checkImmediateHit(pos.x, pos.y);
             });
         }
 
-        // Hàm kiểm tra va chạm ngay lập tức (cho Touch)
         function checkImmediateHit(x, y) {
             if (modal.classList.contains('active')) {
                 closeModal();
@@ -328,13 +325,12 @@
             const cy = height / 2;
             const cosRot = Math.cos(globalRotation);
             const sinRot = Math.sin(globalRotation);
-            const hitRadius = 60; // Vùng chạm lớn cho dễ bấm
+            const hitRadius = 60;
 
             for (let s of stars) {
                 if (!s.isSpecial) continue;
                 const pos = s.getScreenPos(cx, cy, cosRot, sinRot);
                 const dist = Math.hypot(pos.x - x, pos.y - y);
-                
                 if (dist < hitRadius) {
                     openModal(x, y);
                     break;
@@ -342,48 +338,99 @@
             }
         }
 
-        // --- CHẾ ĐỘ 2: DESKTOP / WEBCAM ---
+        // --- CHẾ ĐỘ 2: DESKTOP / WEBCAM (GESTURES MỚI) ---
         async function setupDesktopMode() {
             statusBadge.innerText = "💻 Chế độ AI Camera";
-            guideText.innerText = "🖐️ Xòe tay: Mở • ✊ Nắm tay: Đóng • Di chuyển để xoay";
+            guideText.innerHTML = "☝️ <b>1 Ngón:</b> Chọn &nbsp;|&nbsp; ✌️ <b>2 Ngón:</b> Xoay &nbsp;|&nbsp; 🖐️ <b>Mở:</b> Xem &nbsp;|&nbsp; ✊ <b>Nắm:</b> Đóng";
             modalHint.innerText = "Nắm tay lại để đóng";
             modeSwitchBtn.innerText = "🔄 Chuyển sang Cảm ứng";
 
             const videoElement = document.querySelector('.input_video');
             
+            function detectGesture(lm) {
+                const wrist = lm[0];
+                // Các đầu ngón tay: 8(Trỏ), 12(Giữa), 16(Nhẫn), 20(Út)
+                // Các khớp dưới: 5, 9, 13, 17
+                
+                // Hàm kiểm tra ngón tay có duỗi không (so khoảng cách tới cổ tay)
+                const isExtended = (tipIdx, pipIdx) => {
+                    const dTip = Math.hypot(lm[tipIdx].x - wrist.x, lm[tipIdx].y - wrist.y);
+                    const dPip = Math.hypot(lm[pipIdx].x - wrist.x, lm[pipIdx].y - wrist.y);
+                    return dTip > dPip; // Đầu ngón xa cổ tay hơn khớp -> Duỗi
+                };
+
+                const indexExt = isExtended(8, 5);
+                const middleExt = isExtended(12, 9);
+                const ringExt = isExtended(16, 13);
+                const pinkyExt = isExtended(20, 17);
+                const thumbExt = isExtended(4, 2); // Ngón cái tương đối
+
+                const extCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
+                if (thumbExt) extCount++;
+
+                // 1. Nắm tay (Closed): 0 hoặc 1 ngón duỗi (thường ngón cái hay bị sai)
+                if (extCount <= 1) return 'CLOSED';
+                
+                // 2. Mở tay (Open): 4 hoặc 5 ngón duỗi
+                if (extCount >= 4) return 'OPEN';
+                
+                // 3. Hai ngón (Victory): Trỏ & Giữa duỗi, Nhẫn & Út gập
+                if (indexExt && middleExt && !ringExt && !pinkyExt) return 'TWO_FINGERS';
+                
+                // 4. Một ngón (Pointing): Trỏ duỗi, các ngón khác gập
+                if (indexExt && !middleExt && !ringExt && !pinkyExt) return 'POINTING';
+
+                return 'UNKNOWN';
+            }
+
             function onResults(results) {
                 if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                     const lm = results.multiHandLandmarks[0];
                     const indexTip = lm[8];
 
-                    // Map tọa độ 0-1 sang width-height
+                    // Map tọa độ 0-1 sang width-height (Lật gương)
                     state.cursorX = (1 - indexTip.x) * width;
                     state.cursorY = indexTip.y * height;
                     state.active = true;
 
-                    // Logic Gesture
-                    const d = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
-                    const isClosed = d < 0.05;
+                    // Nhận diện cử chỉ
+                    const gesture = detectGesture(lm);
+                    state.gesture = gesture;
 
-                    if (isClosed) {
+                    // Xử lý Logic dựa trên cử chỉ
+                    if (gesture === 'CLOSED') {
+                        gestureHint.innerText = "✊ NẮM TAY (ĐÓNG)";
                         closeModal();
-                    } else {
-                        // Check hover trong vòng lặp render
+                        state.rotationSpeed = 0; // Dừng xoay
+                    } 
+                    else if (gesture === 'OPEN') {
+                        gestureHint.innerText = "🖐️ XÒE TAY (MỞ)";
+                        state.rotationSpeed = 0;
+                        checkInteraction(false); // Hover để mở
+                    } 
+                    else if (gesture === 'TWO_FINGERS') {
+                        gestureHint.innerText = "✌️ HAI NGÓN (XOAY)";
+                        // Logic Xoay: Dựa trên vị trí tay so với tâm
+                        const cx = width / 2;
+                        const deadZone = 100;
+                        if (state.cursorX < cx - deadZone) {
+                            state.rotationSpeed = -0.005 * ((cx - deadZone - state.cursorX) / 200);
+                        } else if (state.cursorX > cx + deadZone) {
+                            state.rotationSpeed = 0.005 * ((state.cursorX - (cx + deadZone)) / 200);
+                        } else {
+                            state.rotationSpeed = 0;
+                        }
+                    } 
+                    else {
+                        // POINTING hoặc UNKNOWN
+                        gestureHint.innerText = "☝️ MỘT NGÓN (CHỌN)";
+                        state.rotationSpeed = 0; // Chỉ di chuyển con trỏ, không xoay
                     }
 
-                    // Xoay
-                    const cx = width / 2;
-                    const deadZone = 150;
-                    if (state.cursorX < cx - deadZone) {
-                        state.rotationSpeed = -0.003 * ((cx - deadZone - state.cursorX) / 200);
-                    } else if (state.cursorX > cx + deadZone) {
-                        state.rotationSpeed = 0.003 * ((state.cursorX - (cx + deadZone)) / 200);
-                    } else {
-                        state.rotationSpeed = 0;
-                    }
                 } else {
                     state.active = false;
-                    state.rotationSpeed = 0.0005;
+                    state.rotationSpeed = 0.0005; // Trôi tự nhiên
+                    gestureHint.innerText = "👀 Đang tìm tay...";
                 }
             }
 
@@ -393,8 +440,8 @@
                     hands.setOptions({
                         maxNumHands: 1,
                         modelComplexity: 1,
-                        minDetectionConfidence: 0.5,
-                        minTrackingConfidence: 0.5
+                        minDetectionConfidence: 0.6, // Tăng độ tin cậy để nhận diện cử chỉ tốt hơn
+                        minTrackingConfidence: 0.6
                     });
                     hands.onResults(onResults);
                 }
@@ -409,13 +456,22 @@
             } catch (e) {
                 console.error(e);
                 alert("Không thể mở Camera. Đang chuyển về chế độ Cảm ứng.");
-                // Tự động chuyển về touch nếu lỗi và lưu lại để không bị loop
                 localStorage.setItem('universe_mode', 'TOUCH');
                 location.reload();
             }
         }
 
         // --- HÀM UI CHUNG ---
+        function checkInteraction(isClickEvent) {
+            if (modal.classList.contains('active')) {
+                if (isClickEvent && currentMode === 'TOUCH') closeModal();
+                return;
+            }
+            if (state.hoverIndex !== -1) {
+                openModal();
+            }
+        }
+
         function openModal(x, y) {
             if (modal.classList.contains('active')) return;
             msgContent.innerText = messages[Math.floor(Math.random() * messages.length)];
@@ -467,7 +523,6 @@
                 
                 s.draw(ctx, screenPos, frame);
 
-                // Check Hover cho chế độ WEBCAM (Touch đã check ngay khi chạm)
                 if (currentMode === 'WEBCAM' && s.isSpecial && state.active && !modal.classList.contains('active')) {
                     const dist = Math.hypot(screenPos.x - state.cursorX, screenPos.y - state.cursorY);
                     if (dist < hitRadius && dist < closestDist) {
@@ -479,23 +534,36 @@
 
             // Vẽ con trỏ
             if (state.active) {
+                // Style con trỏ dựa trên cử chỉ
+                if (state.gesture === 'TWO_FINGERS') {
+                    ctx.strokeStyle = "#ff00ff"; // Màu hồng cho chế độ Xoay
+                    ctx.fillStyle = "rgba(255, 0, 255, 0.2)";
+                } else if (state.gesture === 'OPEN') {
+                    ctx.strokeStyle = "#ffff00"; // Màu vàng cho chế độ Mở
+                    ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+                } else if (state.gesture === 'CLOSED') {
+                    ctx.strokeStyle = "#ff0000"; // Màu đỏ cho chế độ Đóng
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
+                } else {
+                    ctx.strokeStyle = "#00ff88"; // Màu xanh cho chế độ Chọn
+                    ctx.fillStyle = "rgba(0, 255, 136, 0.2)";
+                }
+
                 ctx.beginPath();
                 ctx.arc(state.cursorX, state.cursorY, hitRadius / 2, 0, Math.PI * 2);
-                
-                if (state.hoverIndex !== -1) {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-                    ctx.strokeStyle = "#fff";
-                    ctx.lineWidth = 3;
-                    // Auto open nếu dùng webcam và hover
-                    if (currentMode === 'WEBCAM') openModal(); 
-                } else {
-                    ctx.fillStyle = (currentMode === 'TOUCH') ? "rgba(0, 255, 136, 0.2)" : "rgba(0, 150, 255, 0.2)";
-                    ctx.strokeStyle = (currentMode === 'TOUCH') ? "#00ff88" : "#00ccff";
-                    ctx.lineWidth = 2;
-                }
-                
-                ctx.fill();
+                ctx.lineWidth = 3;
                 ctx.stroke();
+                ctx.fill();
+
+                if (state.hoverIndex !== -1 && state.gesture === 'OPEN') {
+                    // Logic mở đã xử lý trong onResults
+                } else if (state.hoverIndex !== -1) {
+                     // Highlight khi hover
+                     ctx.fillStyle = "white";
+                     ctx.beginPath();
+                     ctx.arc(state.cursorX, state.cursorY, 5, 0, Math.PI*2);
+                     ctx.fill();
+                }
             }
 
             requestAnimationFrame(animate);
