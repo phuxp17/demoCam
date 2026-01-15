@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vũ Trụ Thông Minh (Hybrid)</title>
+    <title>Vũ Trụ Thông Minh (Fix Nhận Diện)</title>
     
     <style>
         body {
@@ -11,7 +11,7 @@
             overflow: hidden;
             background-color: #020205;
             font-family: 'Segoe UI', sans-serif;
-            touch-action: none; /* Chặn cuộn trang trên mobile */
+            touch-action: none;
             user-select: none;
         }
 
@@ -21,7 +21,7 @@
             height: 100vh;
         }
 
-        /* Giao diện Modal Thông điệp */
+        /* Modal Thông điệp */
         #modal {
             position: absolute;
             top: 50%; left: 50%;
@@ -52,81 +52,82 @@
         #modal p { font-size: 1.4rem; font-weight: bold; color: #e0f7fa; line-height: 1.4; }
         #modal .hint { font-size: 0.9rem; color: #888; margin-top: 20px; font-weight: normal; }
 
-        /* Màn hình chờ / Hướng dẫn */
+        /* Overlay thông tin */
         #overlay {
-            position: absolute;
-            top: 20px; left: 0; width: 100%;
-            text-align: center;
-            pointer-events: none;
-            z-index: 50;
+            position: absolute; top: 10px; left: 0; width: 100%;
+            text-align: center; pointer-events: none; z-index: 50;
         }
 
         .badge {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            display: inline-block;
-            backdrop-filter: blur(5px);
+            background: rgba(0, 255, 136, 0.1); border: 1px solid #00ff88;
+            color: #00ff88; padding: 5px 12px; border-radius: 20px;
+            font-size: 0.9rem; display: inline-block; backdrop-filter: blur(5px);
         }
 
-        /* Hiển thị trạng thái cử chỉ hiện tại */
         #gesture-hint {
-            margin-top: 8px;
-            font-size: 0.9rem;
-            color: #00ccff;
-            text-shadow: 0 0 5px rgba(0, 204, 255, 0.5);
-            height: 20px; 
-            font-weight: bold;
+            margin-top: 5px; height: 20px; font-weight: bold;
+            color: #00ccff; text-shadow: 0 0 5px rgba(0, 204, 255, 0.5);
         }
 
-        /* Nút chuyển chế độ thủ công */
-        #mode-switch {
+        /* Video Debug (Mặc định ẩn, hiện khi bấm nút) */
+        .debug-video-container {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 60;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            backdrop-filter: blur(5px);
-            pointer-events: auto;
+            bottom: 10px; right: 10px;
+            width: 160px; height: 120px;
+            border: 2px solid #ff0055;
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 90;
+            display: none; /* Ẩn mặc định */
+            background: #000;
         }
-        #mode-switch:hover {
-            background: rgba(0, 255, 136, 0.2);
-            border-color: #00ff88;
+        
+        /* Video gốc */
+        .input_video {
+            width: 100%; height: 100%; object-fit: cover;
+            transform: scaleX(-1); /* Lật gương */
         }
 
-        /* Video ẩn cho PC */
-        .input_video { display: none; }
-        
-        /* Hiệu ứng load */
+        /* Nút chức năng góc phải */
+        .controls {
+            position: absolute; top: 10px; right: 10px;
+            display: flex; gap: 10px; z-index: 60;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3);
+            color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+            font-size: 0.8rem; backdrop-filter: blur(5px); pointer-events: auto;
+        }
+        .btn:hover { background: rgba(0,255,136,0.2); border-color: #00ff88; }
+        .btn.active { background: #00ff88; color: #000; border-color: #00ff88; }
+
         #loader {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #00ff88; font-family: monospace;
+            color: #00ff88; font-family: monospace; text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <div id="loader">Đang khởi động hệ thống...</div>
+    <div id="loader">Đang khởi động hệ thống AI...<br><span style="font-size:0.8em; color:#666">Vui lòng chờ 5-10s</span></div>
 
     <div id="overlay">
-        <div class="badge" id="device-status">Đang khởi tạo...</div>
+        <div class="badge" id="device-status">Đang tải...</div>
         <div id="gesture-hint"></div>
-        <div style="margin-top:10px; color: rgba(255,255,255,0.6); font-size: 0.8rem;" id="guide-text"></div>
+        <div style="margin-top:5px; color: rgba(255,255,255,0.6); font-size: 0.75rem;" id="guide-text"></div>
     </div>
 
-    <!-- Nút chuyển chế độ -->
-    <button id="mode-switch" onclick="toggleMode()">🔄 Chuyển Chế Độ</button>
+    <div class="controls">
+        <button class="btn" onclick="toggleDebug()" id="btn-debug">👁️ Hiện Camera</button>
+        <button class="btn" onclick="toggleMode()">🔄 Đổi Chế Độ</button>
+    </div>
 
-    <video class="input_video" playsinline></video>
+    <!-- Khung video debug -->
+    <div class="debug-video-container" id="debug-container">
+        <video class="input_video" playsinline></video>
+    </div>
+
     <canvas id="sky"></canvas>
 
     <div id="modal">
@@ -142,7 +143,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <script>
-        // --- CẤU HÌNH & TRẠNG THÁI ---
         const canvas = document.getElementById('sky');
         const ctx = canvas.getContext('2d');
         const modal = document.getElementById('modal');
@@ -152,429 +152,311 @@
         const guideText = document.getElementById('guide-text');
         const modalHint = document.getElementById('modal-hint');
         const loader = document.getElementById('loader');
-        const modeSwitchBtn = document.getElementById('mode-switch');
+        const debugContainer = document.getElementById('debug-container');
+        const btnDebug = document.getElementById('btn-debug');
 
         let width, height;
         let stars = [];
         let globalRotation = 0;
         let camera = null;
         let hands = null;
-        
-        // --- LOGIC XÁC ĐỊNH CHẾ ĐỘ ---
-        const savedMode = localStorage.getItem('universe_mode');
+        let isDebug = false;
+
+        // Logic Chế độ
+        const savedMode = localStorage.getItem('universe_mode_fix');
         let currentMode = savedMode ? savedMode : ((window.innerWidth < 1024) ? 'TOUCH' : 'WEBCAM');
 
         // Trạng thái điều khiển
         const state = {
             cursorX: -100,
             cursorY: -100,
-            active: false, 
+            active: false,
             rotationSpeed: 0.0005,
             hoverIndex: -1,
-            gesture: 'NONE' // POINTING, TWO_FINGERS, OPEN, CLOSED
+            gesture: 'NONE'
         };
 
         const messages = [
-            "Bạn là duy nhất!", "Hãy cười lên nào.", "Cơ hội đang đến.",
-            "Bình yên trong tâm hồn.", "Sức mạnh nội tại.", "Vũ trụ yêu thương bạn.",
+            "Bạn là duy nhất!", "Cười lên nào!", "Cơ hội đang đến.",
+            "Bình yên nhé.", "Mạnh mẽ lên.", "Vũ trụ yêu bạn.",
             "Đừng bỏ cuộc!", "Hạnh phúc ở đây."
         ];
 
         // --- HỆ THỐNG SAO ---
         class Star {
             constructor() { this.reset(); }
-            
             reset() {
                 const r = Math.max(width, height) * (0.1 + Math.random() * 1.3);
                 const theta = Math.random() * Math.PI * 2;
-                
                 this.x = r * Math.cos(theta);
                 this.y = r * Math.sin(theta);
-                
                 this.size = Math.random() * 2;
                 this.baseSize = this.size;
-                
-                this.isSpecial = Math.random() < 0.15; 
+                this.isSpecial = Math.random() < 0.15;
                 if (this.isSpecial) {
-                    this.size = (currentMode === 'TOUCH') ? 10 + Math.random() * 5 : 6 + Math.random() * 3;
+                    this.size = (currentMode === 'TOUCH') ? 10 + Math.random()*5 : 6 + Math.random()*3;
                     this.baseSize = this.size;
-                    this.color = `hsl(${Math.random() * 60 + 190}, 100%, 80%)`;
+                    this.color = `hsl(${Math.random()*60+190}, 100%, 80%)`;
                 } else {
-                    this.color = `rgba(255, 255, 255, ${Math.random() * 0.7 + 0.3})`;
+                    this.color = `rgba(255,255,255,${Math.random()*0.7+0.3})`;
                 }
-                
                 this.blinkOffset = Math.random() * 100;
             }
-
-            getScreenPos(centerX, centerY, cosRot, sinRot) {
-                const rotX = this.x * cosRot - this.y * sinRot;
-                const rotY = this.x * sinRot + this.y * cosRot;
+            getScreenPos(cx, cy, cos, sin) {
                 return {
-                    x: centerX + rotX,
-                    y: centerY + rotY
+                    x: cx + (this.x * cos - this.y * sin),
+                    y: cy + (this.x * sin + this.y * cos)
                 };
             }
-
-            draw(ctx, screenPos, frame) {
+            draw(ctx, pos, frame) {
                 const blink = Math.sin((frame + this.blinkOffset) * 0.05);
-                const currentSize = this.isSpecial 
-                    ? this.baseSize + blink * 2 
-                    : this.baseSize + blink * 0.5;
-
+                const s = this.isSpecial ? this.baseSize + blink * 2 : this.baseSize + blink * 0.5;
                 ctx.beginPath();
-                ctx.arc(screenPos.x, screenPos.y, Math.max(0, currentSize), 0, Math.PI * 2);
-                
+                ctx.arc(pos.x, pos.y, Math.max(0, s), 0, Math.PI*2);
                 if (this.isSpecial) {
-                    ctx.fillStyle = "#fff";
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = this.color;
+                    ctx.fillStyle = "#fff"; ctx.shadowBlur = 15; ctx.shadowColor = this.color;
                 } else {
-                    ctx.fillStyle = this.color;
-                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = this.color; ctx.shadowBlur = 0;
                 }
                 ctx.fill();
             }
         }
 
-        // --- KHỞI TẠO ---
         function init() {
             width = window.innerWidth;
             height = window.innerHeight;
             canvas.width = width;
             canvas.height = height;
-            
-            const starCount = (currentMode === 'TOUCH') ? 150 : 350;
             stars = [];
-            for (let i = 0; i < starCount; i++) stars.push(new Star());
-
+            const count = (currentMode === 'TOUCH') ? 150 : 350;
+            for(let i=0; i<count; i++) stars.push(new Star());
             loader.style.display = 'none';
             applyMode();
         }
 
-        // --- QUẢN LÝ CHẾ ĐỘ ---
         function toggleMode() {
-            const nextMode = (currentMode === 'TOUCH') ? 'WEBCAM' : 'TOUCH';
-            localStorage.setItem('universe_mode', nextMode);
+            const next = (currentMode === 'TOUCH') ? 'WEBCAM' : 'TOUCH';
+            localStorage.setItem('universe_mode_fix', next);
             location.reload();
         }
-        
+
+        function toggleDebug() {
+            isDebug = !isDebug;
+            debugContainer.style.display = isDebug ? 'block' : 'none';
+            btnDebug.classList.toggle('active');
+            btnDebug.innerText = isDebug ? '👁️ Ẩn Camera' : '👁️ Hiện Camera';
+        }
+
         function applyMode() {
-            if (currentMode === 'TOUCH') {
-                setupMobileMode();
-            } else {
-                setupDesktopMode();
-            }
+            if (currentMode === 'TOUCH') setupMobileMode();
+            else setupDesktopMode();
         }
 
         function getPointerPos(e) {
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
+            const r = canvas.getBoundingClientRect();
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: cx - r.left, y: cy - r.top };
         }
 
-        // --- CHẾ ĐỘ 1: TOUCH / MOBILE ---
+        // --- TOUCH MODE ---
         function setupMobileMode() {
             statusBadge.innerText = "📱 Chế độ Cảm Ứng";
             guideText.innerText = "Chạm vào sao để mở • Kéo để xoay";
             modalHint.innerText = "Chạm ra ngoài để đóng";
-            modeSwitchBtn.innerText = "🔄 Chuyển sang Camera AI";
             gestureHint.innerText = "";
+            btnDebug.style.display = 'none'; // Ẩn nút debug camera
 
             let startX = 0;
-            
             canvas.addEventListener('touchstart', (e) => {
                 const pos = getPointerPos(e);
-                state.cursorX = pos.x;
-                state.cursorY = pos.y;
-                startX = pos.x;
-                state.active = true;
+                state.cursorX = pos.x; state.cursorY = pos.y;
+                startX = pos.x; state.active = true;
                 checkImmediateHit(pos.x, pos.y);
             }, {passive: false});
-
             canvas.addEventListener('touchmove', (e) => {
-                e.preventDefault(); 
+                e.preventDefault();
                 const pos = getPointerPos(e);
-                state.cursorX = pos.x;
-                state.cursorY = pos.y;
-                const deltaX = pos.x - startX;
-                state.rotationSpeed = deltaX * 0.0001; 
+                state.cursorX = pos.x; state.cursorY = pos.y;
+                state.rotationSpeed = (pos.x - startX) * 0.0001;
             }, {passive: false});
-
             canvas.addEventListener('touchend', () => {
-                state.active = false;
-                state.rotationSpeed = 0.0005;
+                state.active = false; state.rotationSpeed = 0.0005;
             });
-            
             canvas.addEventListener('mousedown', (e) => {
-                const pos = getPointerPos(e);
-                checkImmediateHit(pos.x, pos.y);
+                const p = getPointerPos(e); checkImmediateHit(p.x, p.y);
             });
         }
 
         function checkImmediateHit(x, y) {
-            if (modal.classList.contains('active')) {
-                closeModal();
-                return;
-            }
-
-            const cx = width / 2;
-            const cy = height / 2;
-            const cosRot = Math.cos(globalRotation);
-            const sinRot = Math.sin(globalRotation);
-            const hitRadius = 60;
-
-            for (let s of stars) {
-                if (!s.isSpecial) continue;
-                const pos = s.getScreenPos(cx, cy, cosRot, sinRot);
-                const dist = Math.hypot(pos.x - x, pos.y - y);
-                if (dist < hitRadius) {
-                    openModal(x, y);
-                    break;
-                }
+            if (modal.classList.contains('active')) { closeModal(); return; }
+            const cx = width/2, cy = height/2;
+            const cos = Math.cos(globalRotation), sin = Math.sin(globalRotation);
+            for(let s of stars) {
+                if(!s.isSpecial) continue;
+                const p = s.getScreenPos(cx, cy, cos, sin);
+                if(Math.hypot(p.x - x, p.y - y) < 60) { openModal(x, y); break; }
             }
         }
 
-        // --- CHẾ ĐỘ 2: DESKTOP / WEBCAM (GESTURES MỚI) ---
+        // --- WEBCAM MODE (CẢI TIẾN) ---
         async function setupDesktopMode() {
             statusBadge.innerText = "💻 Chế độ AI Camera";
-            guideText.innerHTML = "☝️ <b>1 Ngón:</b> Chọn &nbsp;|&nbsp; ✌️ <b>2 Ngón:</b> Xoay &nbsp;|&nbsp; 🖐️ <b>Mở:</b> Xem &nbsp;|&nbsp; ✊ <b>Nắm:</b> Đóng";
+            guideText.innerHTML = "☝️ 1 Ngón: Chọn | ✌️ 2 Ngón: Xoay | 🖐️ Mở | ✊ Đóng";
             modalHint.innerText = "Nắm tay lại để đóng";
-            modeSwitchBtn.innerText = "🔄 Chuyển sang Cảm ứng";
-
             const videoElement = document.querySelector('.input_video');
-            
+
+            // Hàm phân tích cử chỉ
             function detectGesture(lm) {
                 const wrist = lm[0];
-                // Các đầu ngón tay: 8(Trỏ), 12(Giữa), 16(Nhẫn), 20(Út)
-                // Các khớp dưới: 5, 9, 13, 17
+                const isExt = (t, p) => Math.hypot(lm[t].x - wrist.x, lm[t].y - wrist.y) > 
+                                        Math.hypot(lm[p].x - wrist.x, lm[p].y - wrist.y);
                 
-                // Hàm kiểm tra ngón tay có duỗi không (so khoảng cách tới cổ tay)
-                const isExtended = (tipIdx, pipIdx) => {
-                    const dTip = Math.hypot(lm[tipIdx].x - wrist.x, lm[tipIdx].y - wrist.y);
-                    const dPip = Math.hypot(lm[pipIdx].x - wrist.x, lm[pipIdx].y - wrist.y);
-                    return dTip > dPip; // Đầu ngón xa cổ tay hơn khớp -> Duỗi
-                };
-
-                const indexExt = isExtended(8, 5);
-                const middleExt = isExtended(12, 9);
-                const ringExt = isExtended(16, 13);
-                const pinkyExt = isExtended(20, 17);
-                const thumbExt = isExtended(4, 2); // Ngón cái tương đối
-
-                const extCount = [indexExt, middleExt, ringExt, pinkyExt].filter(Boolean).length;
-                if (thumbExt) extCount++;
-
-                // 1. Nắm tay (Closed): 0 hoặc 1 ngón duỗi (thường ngón cái hay bị sai)
-                if (extCount <= 1) return 'CLOSED';
+                const idx = isExt(8, 5), mid = isExt(12, 9), ring = isExt(16, 13), pky = isExt(20, 17);
+                const count = [idx, mid, ring, pky].filter(Boolean).length;
                 
-                // 2. Mở tay (Open): 4 hoặc 5 ngón duỗi
-                if (extCount >= 4) return 'OPEN';
-                
-                // 3. Hai ngón (Victory): Trỏ & Giữa duỗi, Nhẫn & Út gập
-                if (indexExt && middleExt && !ringExt && !pinkyExt) return 'TWO_FINGERS';
-                
-                // 4. Một ngón (Pointing): Trỏ duỗi, các ngón khác gập
-                if (indexExt && !middleExt && !ringExt && !pinkyExt) return 'POINTING';
+                // Thêm ngón cái (khoảng cách đầu ngón cái tới khớp út)
+                const thumbTip = lm[4], pinkyKnuckle = lm[17];
+                const thumbOpen = Math.hypot(thumbTip.x - pinkyKnuckle.x, thumbTip.y - pinkyKnuckle.y) > 0.15;
+                if(thumbOpen) count++; // Tính tương đối
 
+                if(count <= 1) return 'CLOSED';
+                if(count >= 4) return 'OPEN';
+                if(idx && mid && !ring && !pky) return 'TWO_FINGERS';
+                if(idx && !mid && !ring && !pky) return 'POINTING';
                 return 'UNKNOWN';
             }
 
             function onResults(results) {
                 if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                     const lm = results.multiHandLandmarks[0];
-                    const indexTip = lm[8];
-
-                    // Map tọa độ 0-1 sang width-height (Lật gương)
-                    state.cursorX = (1 - indexTip.x) * width;
-                    state.cursorY = indexTip.y * height;
+                    const idxTip = lm[8];
+                    
+                    // Lấy tọa độ (Lật gương)
+                    state.cursorX = (1 - idxTip.x) * width;
+                    state.cursorY = idxTip.y * height;
                     state.active = true;
 
-                    // Nhận diện cử chỉ
-                    const gesture = detectGesture(lm);
-                    state.gesture = gesture;
+                    const gest = detectGesture(lm);
+                    state.gesture = gest;
 
-                    // Xử lý Logic dựa trên cử chỉ
-                    if (gesture === 'CLOSED') {
+                    if (gest === 'CLOSED') {
                         gestureHint.innerText = "✊ NẮM TAY (ĐÓNG)";
                         closeModal();
-                        state.rotationSpeed = 0; // Dừng xoay
-                    } 
-                    else if (gesture === 'OPEN') {
+                        state.rotationSpeed = 0;
+                    } else if (gest === 'OPEN') {
                         gestureHint.innerText = "🖐️ XÒE TAY (MỞ)";
                         state.rotationSpeed = 0;
-                        checkInteraction(false); // Hover để mở
-                    } 
-                    else if (gesture === 'TWO_FINGERS') {
+                        checkInteraction();
+                    } else if (gest === 'TWO_FINGERS') {
                         gestureHint.innerText = "✌️ HAI NGÓN (XOAY)";
-                        // Logic Xoay: Dựa trên vị trí tay so với tâm
-                        const cx = width / 2;
-                        const deadZone = 100;
-                        if (state.cursorX < cx - deadZone) {
-                            state.rotationSpeed = -0.005 * ((cx - deadZone - state.cursorX) / 200);
-                        } else if (state.cursorX > cx + deadZone) {
-                            state.rotationSpeed = 0.005 * ((state.cursorX - (cx + deadZone)) / 200);
-                        } else {
-                            state.rotationSpeed = 0;
-                        }
-                    } 
-                    else {
-                        // POINTING hoặc UNKNOWN
+                        const cx = width/2, dz = 100;
+                        if (state.cursorX < cx - dz) state.rotationSpeed = -0.005 * ((cx - dz - state.cursorX)/200);
+                        else if (state.cursorX > cx + dz) state.rotationSpeed = 0.005 * ((state.cursorX - (cx + dz))/200);
+                        else state.rotationSpeed = 0;
+                    } else {
                         gestureHint.innerText = "☝️ MỘT NGÓN (CHỌN)";
-                        state.rotationSpeed = 0; // Chỉ di chuyển con trỏ, không xoay
+                        state.rotationSpeed = 0;
                     }
-
                 } else {
                     state.active = false;
-                    state.rotationSpeed = 0.0005; // Trôi tự nhiên
+                    state.rotationSpeed = 0.0005;
                     gestureHint.innerText = "👀 Đang tìm tay...";
                 }
             }
 
             try {
-                if (!hands) {
+                if(!hands) {
                     hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+                    // CẤU HÌNH QUAN TRỌNG: Giảm độ tự tin xuống để dễ bắt tay hơn
                     hands.setOptions({
                         maxNumHands: 1,
-                        modelComplexity: 1,
-                        minDetectionConfidence: 0.6, // Tăng độ tin cậy để nhận diện cử chỉ tốt hơn
-                        minTrackingConfidence: 0.6
+                        modelComplexity: 0, // Lite mode cho nhanh
+                        minDetectionConfidence: 0.3, // Dễ tính hơn (cũ là 0.5)
+                        minTrackingConfidence: 0.3
                     });
                     hands.onResults(onResults);
                 }
-
-                if (!camera) {
+                if(!camera) {
                     camera = new Camera(videoElement, {
                         onFrame: async () => { await hands.send({image: videoElement}); },
-                        width: 640, height: 480
+                        width: 640, height: 480,
+                        facingMode: 'user'
                     });
                     await camera.start();
                 }
             } catch (e) {
                 console.error(e);
-                alert("Không thể mở Camera. Đang chuyển về chế độ Cảm ứng.");
-                localStorage.setItem('universe_mode', 'TOUCH');
+                alert("Lỗi Camera. Chuyển về cảm ứng.");
+                localStorage.setItem('universe_mode_fix', 'TOUCH');
                 location.reload();
             }
         }
 
-        // --- HÀM UI CHUNG ---
-        function checkInteraction(isClickEvent) {
-            if (modal.classList.contains('active')) {
-                if (isClickEvent && currentMode === 'TOUCH') closeModal();
-                return;
-            }
-            if (state.hoverIndex !== -1) {
-                openModal();
-            }
+        function checkInteraction() {
+            if(modal.classList.contains('active')) return;
+            if(state.hoverIndex !== -1) openModal();
         }
-
         function openModal(x, y) {
-            if (modal.classList.contains('active')) return;
-            msgContent.innerText = messages[Math.floor(Math.random() * messages.length)];
+            if(modal.classList.contains('active')) return;
+            msgContent.innerText = messages[Math.floor(Math.random()*messages.length)];
             modal.classList.add('active');
             createExplosion(x || state.cursorX, y || state.cursorY);
         }
-
-        function closeModal() {
-            modal.classList.remove('active');
-        }
+        function closeModal() { modal.classList.remove('active'); }
 
         function createExplosion(x, y) {
-            const burst = document.createElement('div');
-            Object.assign(burst.style, {
-                position: 'absolute', left: x + 'px', top: y + 'px',
-                width: '10px', height: '10px', background: '#fff',
-                borderRadius: '50%', boxShadow: '0 0 30px 10px #00ff88',
-                transform: 'translate(-50%,-50%)', pointerEvents: 'none', zIndex: 200,
-                transition: 'all 0.5s ease-out'
+            const b = document.createElement('div');
+            Object.assign(b.style, {
+                position:'absolute', left:x+'px', top:y+'px', width:'10px', height:'10px',
+                background:'#fff', borderRadius:'50%', boxShadow:'0 0 30px 10px #00ff88',
+                transform:'translate(-50%,-50%)', pointerEvents:'none', zIndex:200, transition:'all 0.5s'
             });
-            document.body.appendChild(burst);
-            requestAnimationFrame(() => {
-                burst.style.transform = 'translate(-50%,-50%) scale(5)';
-                burst.style.opacity = 0;
-            });
-            setTimeout(() => burst.remove(), 500);
+            document.body.appendChild(b);
+            requestAnimationFrame(()=>{ b.style.transform='translate(-50%,-50%) scale(5)'; b.style.opacity=0; });
+            setTimeout(()=>b.remove(), 500);
         }
 
-        // --- RENDER LOOP ---
         let frame = 0;
         function animate() {
             frame++;
-            ctx.fillStyle = "#020205";
-            ctx.fillRect(0, 0, width, height);
-
+            ctx.fillStyle = "#020205"; ctx.fillRect(0, 0, width, height);
             globalRotation += state.rotationSpeed;
-            const cx = width / 2;
-            const cy = height / 2;
-            const cosRot = Math.cos(globalRotation);
-            const sinRot = Math.sin(globalRotation);
-
+            const cx = width/2, cy = height/2;
+            const cos = Math.cos(globalRotation), sin = Math.sin(globalRotation);
             state.hoverIndex = -1;
-            let closestDist = 999;
-            const hitRadius = (currentMode === 'TOUCH') ? 60 : 40;
+            let closeDist = 999; const hitR = (currentMode === 'TOUCH') ? 60 : 40;
 
-            for (let i = 0; i < stars.length; i++) {
+            for(let i=0; i<stars.length; i++) {
                 const s = stars[i];
-                const screenPos = s.getScreenPos(cx, cy, cosRot, sinRot);
+                const p = s.getScreenPos(cx, cy, cos, sin);
+                s.draw(ctx, p, frame);
+                if(currentMode==='WEBCAM' && s.isSpecial && state.active && !modal.classList.contains('active')) {
+                    const d = Math.hypot(p.x - state.cursorX, p.y - state.cursorY);
+                    if(d < hitR && d < closeDist) { closeDist = d; state.hoverIndex = i; }
+                }
+            }
+
+            if(state.active) {
+                let color = "#00ff88"; // Pointing
+                if(state.gesture==='TWO_FINGERS') color = "#ff00ff";
+                else if(state.gesture==='OPEN') color = "#ffff00";
+                else if(state.gesture==='CLOSED') color = "#ff0000";
                 
-                s.draw(ctx, screenPos, frame);
-
-                if (currentMode === 'WEBCAM' && s.isSpecial && state.active && !modal.classList.contains('active')) {
-                    const dist = Math.hypot(screenPos.x - state.cursorX, screenPos.y - state.cursorY);
-                    if (dist < hitRadius && dist < closestDist) {
-                        closestDist = dist;
-                        state.hoverIndex = i;
-                    }
-                }
-            }
-
-            // Vẽ con trỏ
-            if (state.active) {
-                // Style con trỏ dựa trên cử chỉ
-                if (state.gesture === 'TWO_FINGERS') {
-                    ctx.strokeStyle = "#ff00ff"; // Màu hồng cho chế độ Xoay
-                    ctx.fillStyle = "rgba(255, 0, 255, 0.2)";
-                } else if (state.gesture === 'OPEN') {
-                    ctx.strokeStyle = "#ffff00"; // Màu vàng cho chế độ Mở
-                    ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
-                } else if (state.gesture === 'CLOSED') {
-                    ctx.strokeStyle = "#ff0000"; // Màu đỏ cho chế độ Đóng
-                    ctx.fillStyle = "rgba(255, 0, 0, 0.2)";
-                } else {
-                    ctx.strokeStyle = "#00ff88"; // Màu xanh cho chế độ Chọn
-                    ctx.fillStyle = "rgba(0, 255, 136, 0.2)";
-                }
-
                 ctx.beginPath();
-                ctx.arc(state.cursorX, state.cursorY, hitRadius / 2, 0, Math.PI * 2);
-                ctx.lineWidth = 3;
-                ctx.stroke();
-                ctx.fill();
-
-                if (state.hoverIndex !== -1 && state.gesture === 'OPEN') {
-                    // Logic mở đã xử lý trong onResults
-                } else if (state.hoverIndex !== -1) {
-                     // Highlight khi hover
-                     ctx.fillStyle = "white";
-                     ctx.beginPath();
-                     ctx.arc(state.cursorX, state.cursorY, 5, 0, Math.PI*2);
-                     ctx.fill();
+                ctx.arc(state.cursorX, state.cursorY, hitR/2, 0, Math.PI*2);
+                ctx.strokeStyle = color; ctx.fillStyle = color + "33";
+                ctx.lineWidth = 3; ctx.fill(); ctx.stroke();
+                
+                if(state.hoverIndex!==-1) {
+                    ctx.fillStyle="white"; ctx.beginPath(); ctx.arc(state.cursorX, state.cursorY, 5, 0, Math.PI*2); ctx.fill();
                 }
             }
-
             requestAnimationFrame(animate);
         }
 
         window.addEventListener('resize', init);
-        window.onload = () => {
-            init();
-            animate();
-        };
-
+        window.onload = () => { init(); animate(); };
     </script>
 </body>
 </html>
